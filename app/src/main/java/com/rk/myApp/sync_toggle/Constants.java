@@ -64,7 +64,7 @@ public class Constants {
         return constant;
     }
 
-    protected Location getMylocation() {
+    public Location getMylocation() {
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(((Activity) context), new String[]{android.Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
             return null;

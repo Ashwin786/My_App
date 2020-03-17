@@ -1,6 +1,7 @@
 package com.rk.myApp.callscreenblocker;
 
 import android.Manifest;
+import android.annotation.TargetApi;
 import android.app.AppOpsManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -8,6 +9,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.PixelFormat;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
@@ -17,27 +20,90 @@ import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Toast;
+
 import com.rk.myApp.R;
 import com.rk.myApp.receiver.Alarmactivater;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-
+    private static final String TAG = "Lifecycle Activity";
     private int OVERLAY_PERMISSION_CODE = 0;
     private Button btn, btn2;
     private SharedPreferences sp;
     private String btntext;
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d(TAG, "on Start function");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d(TAG, "on Resumes function");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d(TAG, "on Pause function");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d(TAG, "on Stop function");
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        Log.d(TAG, "on Restart function");
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.v(TAG, "on Restart function");
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_screen_main);
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
+        if (networkInfo != null) {
+            Log.e(TAG, "networkInfo type" + networkInfo.getType());
+            Log.e(TAG, "networkInfo type" + networkInfo.getTypeName());
+        }
+        Log.e(TAG, "networkInfo : " + networkInfo);
+//        if (networkInfo != null){
+//            Log.e(TAG,"networkInfo : " +networkInfo.getExtraInfo());
+//        }
 
+
+//        getUIText22();
+        /*TelephonyManager telephony = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        String what = telephony.getNetworkOperatorName();*/
+//        int what = telephony.get();
+//        Log.e(TAG,"what"+what);
+//        String optName = getOutput(this, "getCarrierName", 1);
+//        Log.e(TAG,"optName"+optName);
         sp = getSharedPreferences("call_blocker", MODE_PRIVATE);
         btn = (Button) findViewById(R.id.btn);
         btn2 = (Button) findViewById(R.id.btn2);
@@ -97,9 +163,48 @@ public class MainActivity extends AppCompatActivity {
         if (canDrawOverlays(this)) {
             sp.edit().putBoolean("permission_status", true).commit();
         }
+
 //        Log.e("CanDrawOverlays",""+canDrawOverlays(this)) ;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            if (sp.getBoolean("permission_status", false)) {
+                SubscriptionManager manager = (SubscriptionManager) getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+                int defaultSmsId = manager.getDefaultDataSubscriptionId();
+                Log.e(TAG, "defaultSmsId" + defaultSmsId);
+                SubscriptionInfo info = manager.getActiveSubscriptionInfo(defaultSmsId);
+
+                Log.e(TAG, "info" + info);
+                Log.e(TAG, "getIccId " + info.getIccId());
+            }
+            mSimSerialID();
+        }
+
     }
 
+    private void mSimSerialID() {
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP_MR1) {
+            SubscriptionManager subscriptionManager = (SubscriptionManager) getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+            List<SubscriptionInfo> subsInfoList = subscriptionManager.getActiveSubscriptionInfoList();
+            if (subsInfoList != null) {
+                Log.d("Test", "Current list = " + subsInfoList);
+                for (int i = 0; i < subsInfoList.size(); i++) {
+                    if (i == 0) {
+//                        serialNoSIM1 = subsInfoList.get(i).getIccId();
+                        Log.e(TAG, "sim 1 " + subsInfoList.get(i).getIccId());
+                    }
+                    if (i == 1) {
+//                        serialNoSIM2 = subsInfoList.get(i).getIccId();
+                        Log.e(TAG, "sim2 " + subsInfoList.get(i).getIccId());
+                    }
+
+                }
+//                    for (SubscriptionInfo subscriptionInfo : subsInfoList) {
+//                        String number1 = subscriptionInfo.getNumber();
+//                        Log.d("Test", " Number is  " + number);
+//                    }
+            }
+        }
+    }
 
     public boolean addOverlay() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -229,5 +334,132 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
+    }
+
+    int getDefaultDataSubscriptionId(final SubscriptionManager subscriptionManager) {
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
+            int nDataSubscriptionId = SubscriptionManager.getDefaultDataSubscriptionId();
+
+            if (nDataSubscriptionId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                return (nDataSubscriptionId);
+            }
+        }
+
+        try {
+            Class<?> subscriptionClass = Class.forName(subscriptionManager.getClass().getName());
+            try {
+                Method getDefaultDataSubscriptionId = subscriptionClass.getMethod("getDefaultDataSubId");
+
+                try {
+                    return ((int) getDefaultDataSubscriptionId.invoke(subscriptionManager));
+                } catch (IllegalAccessException e1) {
+                    e1.printStackTrace();
+                } catch (InvocationTargetException e1) {
+                    e1.printStackTrace();
+                }
+            } catch (NoSuchMethodException e1) {
+                e1.printStackTrace();
+            }
+        } catch (ClassNotFoundException e1) {
+            e1.printStackTrace();
+        }
+
+        return (SubscriptionManager.INVALID_SUBSCRIPTION_ID);
+    }
+
+    @TargetApi(22)
+    public String getUIText22(final TelephonyManager telephonyManager) {
+        SubscriptionManager subscriptionManager = (SubscriptionManager) getApplicationContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+
+        int nDataSubscriptionId = getDefaultDataSubscriptionId(subscriptionManager);
+
+        if (nDataSubscriptionId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            SubscriptionInfo si = subscriptionManager.getActiveSubscriptionInfo(nDataSubscriptionId);
+
+            if (si != null) {
+                return (si.getCarrierName().toString());
+            }
+        }
+        return null;
+    }
+
+    private static String getOutput(Context context, String methodName, int slotId) {
+        TelephonyManager telephony = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        Class<?> telephonyClass;
+        String reflectionMethod = null;
+        String output = null;
+        try {
+            telephonyClass = Class.forName(telephony.getClass().getName());
+            for (Method method : telephonyClass.getMethods()) {
+                String name = method.getName();
+//                if (name.contains(methodName)) {
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length > 0) {
+                    reflectionMethod = name;
+                    Log.e("Name", reflectionMethod);
+                }
+//                }
+            }
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        if (reflectionMethod != null) {
+            try {
+                output = getOpByReflection(telephony, reflectionMethod, slotId, false);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        return output;
+    }
+
+    private static String getOpByReflection(TelephonyManager telephony, String predictedMethodName, int slotID, boolean isPrivate) {
+
+        //Log.i("Reflection", "Method: " + predictedMethodName+" "+slotID);
+        String result = null;
+
+        try {
+
+            Class<?> telephonyClass = Class.forName(telephony.getClass().getName());
+
+            Class<?>[] parameter = new Class[1];
+            parameter[0] = int.class;
+            Method getSimID;
+            if (slotID != -1) {
+                if (isPrivate) {
+                    getSimID = telephonyClass.getDeclaredMethod(predictedMethodName, parameter);
+                } else {
+                    getSimID = telephonyClass.getMethod(predictedMethodName, parameter);
+                }
+            } else {
+                if (isPrivate) {
+                    getSimID = telephonyClass.getDeclaredMethod(predictedMethodName);
+                } else {
+                    getSimID = telephonyClass.getMethod(predictedMethodName);
+                }
+            }
+
+            Object ob_phone;
+            Object[] obParameter = new Object[1];
+            obParameter[0] = slotID;
+            if (getSimID != null) {
+                if (slotID != -1) {
+                    ob_phone = getSimID.invoke(telephony, obParameter);
+                } else {
+                    ob_phone = getSimID.invoke(telephony);
+                }
+
+                if (ob_phone != null) {
+                    result = ob_phone.toString();
+
+                }
+            }
+        } catch (Exception e) {
+            //e.printStackTrace();
+            return null;
+        }
+        //Log.i("Reflection", "Result: " + result);
+        return result;
     }
 }
